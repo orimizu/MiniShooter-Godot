@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://bfk9nf2j4l3xg"]
+
+[ext_resource type="Script" path="res://scripts/Boss.gd" id="1_boss_script"]
+
+[node name="Boss" type="Area2D"]
+script = ExtResource("1_boss_script")

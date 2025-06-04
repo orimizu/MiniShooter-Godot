@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>弾幕系縦シューティング</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+            font-family: 'Press Start 2P', cursive;
+            color: #0f0;
+        }
+        #game-container {
+            position: relative;
+            border: 5px solid #0f0;
+            background-color: #000;
+            box-shadow: 0 0 10px #0f0, 0 0 20px #0f0;
+        }
+        canvas {
+            display: block;
+        }
+        #game-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            flex-direction: column; /* 縦方向に並べる */
+            padding: 10px;
+            box-sizing: border-box;
+            font-size: 1em;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+            border: 2px solid #0f0;
+        }
+        #score-display {
+            margin-bottom: 10px; /* スコアとライフの間を空ける */
+        }
+        #enemy-rate-display {
+            margin-bottom: 10px; /* スコアとライフの間を空ける */
+        }
+        #lives-display {
+            display: flex;
+            align-items: center;
+        }
+        #lives-text {
+            margin-right: 10px; /* テキストとアイコンの間を空ける */
+        }
+        #life-icons {
+            display: flex; /* ライフアイコンを横に並べる */
+        }
+        .life-icon {
+            width: 10px; /* アイコンのサイズ */
+            height: 10px; /* アイコンのサイズ */
+            background-color: #0f0;
+            border-radius: 50%; /* 丸にする */
+            margin-right: 2px; /* アイコンの間を空ける */
+        }
+        .life-icon.empty {
+            background-color: #333; /* ライフがない時の色 */
+        }
+        #game-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 1.5em;
+            color: #ff0;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 3px solid #ff0;
+            z-index: 20;
+            display: none;
+            flex-direction: column; /* 縦方向に並べる */
+            align-items: center; /* 水平方向中央揃え */
+            width: 70%; /* game-canvasの幅の70%に設定 */
+        }
+        #game-message button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8em;
+            background-color: #ff0;
+            color: #000;
+            border: none;
+            cursor: pointer;
+        }
+        #game-message button:hover {
+            background-color: #f0;
+        }
+        #start-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 1.5em;
+            color: #ff0;
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border: 3px solid #ff0;
+            z-index: 30; /* ゲームメッセージの上に表示 */
+            flex-direction: column; /* 縦方向に並べる */
+            align-items: center; /* 水平方向中央揃え */
+            width: 70%; /* game-canvasの幅の70%に設定 */
+        }
+        #start-screen button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8em;
+            background-color: #ff0;
+            color: #000;
+            border: none;
+            cursor: pointer;
+        }
+        #start-screen button:hover {
+            background-color: #f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-info">
+        <div id="score-display">Score: <span id="score">0</span></div>
+        <div id="enemy-rate-display">EnemyRate: <span id="enemy-rate">0</span></div>
+        <div id="lives-display">
+            <span id="lives-text">Lives:</span>
+            <div id="life-icons">
+                <!-- ライフアイコンがJavaScriptで追加されます -->
+            </div>
+        </div>
+    </div>
+    <div id="game-container">
+        <canvas id="game-canvas" width="480" height="640"></canvas>
+        <div id="game-message">
+            <div id="message-text"></div>
+            <button id="restart-button">Restart</button>
+        </div>
+        <div id="start-screen">
+            <div id="start-message-text">弾幕系<br>縦シューティング</div>
+            <br>
+            <button id="start-button">Start Game</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const enemyRateDisplay = document.getElementById('enemy-rate');
+        const livesDisplay = document.getElementById('lives-display');
+        const lifeIconsContainer = document.getElementById('life-icons');
+        const lifeBar = document.getElementById('life-bar');
+        const gameMessage = document.getElementById('game-message');
+        const messageText = document.getElementById('message-text');
+        const restartButton = document.getElementById('restart-button');
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('start-button');
+
+        let score = 0;
+        let maxLives = 20; // 最大ライフを設定
+        let enemyRate = 0.05 // 初期の敵出現レート
+        let lives = maxLives;
+        let gameOver = false;
+        let gameStarted = false; // ゲーム開始フラグ
+        let gameLoopId;
+
+        // プレイヤーの設定
+        const player = {
+            x: canvas.width / 2 - 16,
+            y: canvas.height - 64,
+            width: 32,
+            height: 32,
+            color1: '#fff',
+            color2: '#f00',
+            speed: 5,
+            hitRadius: 2 // 当たり判定の半径 (4x4ドットの半分)
+        };
+
+        // プレイヤーの弾の設定
+        const playerBullets = [];
+
+        // 敵の設定
+        const enemies = [];
+
+        // 敵の弾の設定
+        const enemyBullets = [];
+
+        // キーボード入力状態
+        let keys = {
+            left: false,
+            right: false,
+            up: false,
+            down: false,
+            space: false
+        };
+
+        // プレイヤーのドットパターン (8x8)
+        const playerPattern = [
+            [0, 0, 0, 2, 2, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [2, 0, 1, 2, 2, 1, 0, 2],
+            [2, 1, 1, 1, 1, 1, 1, 2],
+            [2, 0, 0, 0, 0, 0, 0, 2]
+        ];
+
+        // 敵のドットパターン (色ごとに定義)
+        const enemyPatterns = {
+            '#f00': [ // 赤
+                [0, 0, 1, 1, 1, 0, 0, 0],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 0, 0, 1, 1, 0, 0, 0]
+            ],
+            '#ff0': [ // 黄
+                [0, 1, 1, 0, 0, 1, 1, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0]
+            ],
+            '#0ff': [ // シアン
+                [0, 0, 0, 1, 1, 0, 0, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 0, 0, 1, 1, 0, 0, 0]
+            ],
+            '#00f': [ // 青
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [1, 1, 0, 0, 0, 0, 1, 1],
+                [1, 1, 0, 0, 0, 0, 1, 1],
+                [1, 1, 1, 0, 0, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 0, 0, 1, 1, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0]
+            ],
+            '#0f0': [ // 緑
+                [1, 1, 0, 0, 0, 0, 1, 1],
+                [1, 1, 0, 1, 1, 0, 1, 1],
+                [1, 1, 0, 1, 1, 0, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 0, 1, 1, 0, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [1, 1, 0, 0, 0, 0, 1, 1],
+                [0, 1, 1, 0, 0, 1, 1, 0]
+            ],
+            '#f0f': [ // ピンク
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1, 1, 0],
+                [0, 0, 1, 1, 1, 1, 0, 0],
+                [0, 0, 0, 1, 1, 0, 0, 0]
+            ]
+        };
+
+        // 敵の弾のドットパターン (8x8)
+        const enemyBulletPattern = [
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 1, 0, 0, 0, 0, 1, 0],
+            [1, 0, 0, 1, 1, 0, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 1, 1, 1, 0, 1],
+            [1, 0, 0, 1, 1, 0, 0, 1],
+            [0, 1, 0, 0, 0, 0, 1, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0]
+        ];
+
+        // プレイヤーの描画
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            const patternSize = player.width / playerPattern.length;
+
+            for (let row = 0; row < playerPattern.length; row++) {
+                for (let col = 0; col < playerPattern[row].length; col++) {
+                    if (playerPattern[row][col] === 1) {
+                        ctx.fillStyle = player.color1;
+                        ctx.fillRect(
+                            player.x + col * patternSize,
+                            player.y + row * patternSize,
+                            patternSize,
+                            patternSize
+                        );
+                    }
+                    if (playerPattern[row][col] === 2) {
+                        ctx.fillStyle = player.color2;
+                        ctx.fillRect(
+                            player.x + col * patternSize,
+                            player.y + row * patternSize,
+                            patternSize,
+                            patternSize
+                        );
+                    }
+                }
+            }
+        }
+
+        // プレイヤーの弾の生成
+        function createPlayerBullet() {
+            // 前方向の弾
+            playerBullets.push({
+                x: player.x + player.width / 2 - 2.5,
+                y: player.y,
+                width: 10,
+                height: 10,
+                color: '#ff0',
+                speed: 10,
+                dx: 0, // 前方向
+                dy: -1 // 上方向
+            });
+
+            // 右前-112.5度方向の弾
+            const angleRight1 = -112.5 * Math.PI / 180; // -112.5度をラジアンに変換
+            playerBullets.push({
+                x: player.x + player.width / 2 - 2.5,
+                y: player.y,
+                width: 10,
+                height: 10,
+                color: '#ff0',
+                speed: 10,
+                dx: Math.cos(angleRight1),
+                dy: Math.sin(angleRight1)
+            });
+
+            // 左前-67.5度方向の弾
+            const angleLeft1 = -67.5 * Math.PI / 180; // -67.5度をラジアンに変換
+            playerBullets.push({
+                x: player.x + player.width / 2 - 2.5,
+                y: player.y,
+                width: 10,
+                height: 10,
+                color: '#ff0',
+                speed: 10,
+                dx: Math.cos(angleLeft1),
+                dy: Math.sin(angleLeft1)
+            });
+
+
+            if (score > 500) {
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: 0, 
+                    dy: 1 // 下方向
+                });
+                // 右後ろ112.5度方向の弾
+                const angleRight2 = 112.5 * Math.PI / 180; // 112.5度をラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight2),
+                    dy: Math.sin(angleRight2)
+                });
+
+                // 左後ろ67.5度方向の弾
+                const angleLeft2 = 67.5 * Math.PI / 180; // 67.5度をラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft2),
+                    dy: Math.sin(angleLeft2)
+                });
+            };
+
+            if (score > 1000) {
+                // 右90度方向の弾
+                const angleRight3 = 0 * Math.PI / 180; // 0度をラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight3),
+                    dy: Math.sin(angleRight3)
+                });
+
+                // 左90度(270度)方向の弾
+                const angleLeft3 = 180 * Math.PI / 180; // 180度をラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft3),
+                    dy: Math.sin(angleLeft3)
+                });
+            };
+
+            if (score > 2000) {
+                // 右上下22.5度方向の弾
+                const angleRight4 = 22.5 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight4),
+                    dy: Math.sin(angleRight4)
+                });
+                // 右上下22.5度方向の弾
+                const angleRight5 = -22.5 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight5),
+                    dy: Math.sin(angleRight5)
+                });
+
+                // 左上下22.5度9方向の弾
+                const angleLeft4 = 157.5 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft4),
+                    dy: Math.sin(angleLeft4)
+                });
+                // 左上下22.5度方向の弾
+                const angleLeft5 = 202.5 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft5),
+                    dy: Math.sin(angleLeft5)
+                });
+            };
+
+            if (score > 3000) {
+                // 右上下22.5度方向の弾
+                const angleRight6 = 45 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight6),
+                    dy: Math.sin(angleRight6)
+                });
+                // 右上下22.5度方向の弾
+                const angleRight7 = -45 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleRight7),
+                    dy: Math.sin(angleRight7)
+                });
+
+                // 左上下45度9方向の弾
+                const angleLeft6 = 135 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft6),
+                    dy: Math.sin(angleLeft6)
+                });
+                // 左上下45度方向の弾
+                const angleLeft7 = 225 * Math.PI / 180; // ラジアンに変換
+                playerBullets.push({
+                    x: player.x + player.width / 2 - 2.5,
+                    y: player.y,
+                    width: 10,
+                    height: 10,
+                    color: '#ff0',
+                    speed: 10,
+                    dx: Math.cos(angleLeft7),
+                    dy: Math.sin(angleLeft7)
+                });
+            };
+        }
+
+        // プレイヤーの弾の更新と描画
+        function updatePlayerBullets() {
+            playerBullets.forEach((bullet, index) => {
+                bullet.x += bullet.dx * bullet.speed;
+                bullet.y += bullet.dy * bullet.speed;
+                ctx.fillStyle = bullet.color;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+                // 画面外に出たら削除
+                if (bullet.y < 0) {
+                    playerBullets.splice(index, 1);
+                }
+            });
+        }
+
+        // 敵の生成
+        function createEnemy() {
+            const size = Math.random() * 30 + 20;
+            const colors = Object.keys(enemyPatterns);
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const pattern = enemyPatterns[color];
+
+            // 敵の移動パターンをランダムに決定
+            const movePattern = Math.floor(Math.random() * 4); // 0:まっすぐ, 1:揺れ, 2:斜め, 3:バック
+
+            enemies.push({
+                x: Math.random() * (canvas.width - size),
+                y: -size,
+                width: size,
+                height: size,
+                color: color,
+                pattern: pattern,
+                speed: Math.random() * 2 + 1,
+                fireRate: Math.random() * 60 + 30, // 射撃間隔
+                fireCounter: 0,
+                hitRadius: size / 2, // 敵の当たり判定
+                movePattern: movePattern,
+                angle: Math.random() * Math.PI * 2, // 斜め移動の角度
+                waveSpeed: Math.random() * 2 + 1, // 揺れの速度
+                waveCounter: 0, // 揺れのカウンター
+                speedChangeRate: Math.random() * 100 + 50, // 速度変化頻度
+                speedChangeCounter: 0 // 速度変化カウンター
+            });
+        }
+
+        // 敵の更新と描画
+        function updateEnemies() {
+            enemies.forEach((enemy, index) => {
+                // 移動パターンに応じて移動
+                switch (enemy.movePattern) {
+                    case 0: // まっすぐ
+                        enemy.y += enemy.speed;
+                        break;
+                    case 1: // 揺れ
+                        enemy.y += enemy.speed;
+                        enemy.x += Math.sin(enemy.waveCounter) * enemy.speed * 0.5;
+                        enemy.waveCounter += enemy.waveSpeed;
+                        break;
+                    case 2: // 斜め
+                        enemy.x += Math.cos(enemy.angle) * enemy.speed;
+                        enemy.y += Math.sin(enemy.angle) * enemy.speed;
+                        // 画面端に当たったら跳ね返す
+                        if (enemy.x < 0 || enemy.x > canvas.width - enemy.width) {
+                            enemy.angle = Math.PI - enemy.angle;
+                        }
+                        break;
+                    case 3: // バック
+                        enemy.y += enemy.speed;
+                        if (enemy.y > canvas.height / 2) {
+                            enemy.y -= enemy.speed * 0.5; // 少し上に戻る
+                        }
+                        break;
+                }
+
+                // 青色の敵の場合、速度変化
+                if (enemy.color === '#00f') {
+                    enemy.speedChangeCounter++;
+                    if (enemy.speedChangeCounter >= enemy.speedChangeRate) {
+                        enemy.speed = Math.random() * 3 + 1; // 速度をランダムに変化
+                        enemy.speedChangeCounter = 0;
+                    }
+                }
+
+                ctx.fillStyle = enemy.color;
+                const patternSize = enemy.width / enemy.pattern.length;
+
+                for (let row = 0; row < enemy.pattern.length; row++) {
+                    for (let col = 0; col < enemy.pattern[row].length; col++) {
+                        if (enemy.pattern[row][col] === 1) {
+                            ctx.fillRect(
+                                enemy.x + col * patternSize,
+                                enemy.y + row * patternSize,
+                                patternSize,
+                                patternSize
+                            );
+                        }
+                    }
+                }
+
+                // 当たり判定用の円を描画 (デバッグ用)
+                // ctx.beginPath();
+                // ctx.arc(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.hitRadius, 0, Math.PI * 2);
+                // ctx.strokeStyle = 'red'; // 当たり判定を可視化する場合
+                // ctx.stroke();
+                // ctx.closePath();
+
+                // 射撃
+                enemy.fireCounter++;
+                if (enemy.fireCounter >= enemy.fireRate) {
+                    createEnemyBullets(enemy);
+                    enemy.fireCounter = 0;
+                }
+
+                // 画面外に出たら削除
+                if (enemy.y > canvas.height) {
+                    enemies.splice(index, 1);
+                }
+            });
+        }
+
+        // 敵の弾の生成 (16方向)
+        function createEnemyBullets(enemy) {
+            const numDirections = 16;
+            const angleIncrement = (2 * Math.PI) / numDirections;
+
+            for (let i = 0; i < numDirections; i++) {
+                const angle = i * angleIncrement;
+                const dx = Math.cos(angle);
+                const dy = Math.sin(angle);
+
+                enemyBullets.push({
+                    x: enemy.x + enemy.width / 2 - 4, // 弾のサイズに合わせて調整
+                    y: enemy.y + enemy.height,
+                    width: 16, // 弾のサイズを8x8に変更
+                    height: 16, // 弾のサイズを8x8に変更
+                    color: '#fbb', // 弾の色を #f88に変更
+                    speed: 3,
+                    dx: dx,
+                    dy: dy,
+                    hitRadius: 4 // 敵の弾の当たり判定
+                });
+            }
+        }
+
+        // 敵の弾の更新と描画
+        function updateEnemyBullets() {
+            enemyBullets.forEach((bullet, index) => {
+                bullet.x += bullet.dx * bullet.speed;
+                bullet.y += bullet.dy * bullet.speed;
+                ctx.fillStyle = bullet.color;
+                const patternSize = bullet.width / enemyBulletPattern.length;
+
+                for (let row = 0; row < enemyBulletPattern.length; row++) {
+                    for (let col = 0; col < enemyBulletPattern[row].length; col++) {
+                        if (enemyBulletPattern[row][col] === 1) {
+                            ctx.fillRect(
+                                bullet.x + col * patternSize,
+                                bullet.y + row * patternSize,
+                                patternSize,
+                                patternSize
+                            );
+                        }
+                    }
+                }
+
+                // 当たり判定用の円を描画 (デバッグ用)
+                // ctx.beginPath();
+                // ctx.arc(bullet.x + bullet.width / 2, bullet.y + bullet.height / 2, bullet.hitRadius, 0, Math.PI * 2);
+                // ctx.strokeStyle = 'orange'; // 当たり判定を可視化する場合
+                // ctx.stroke();
+                // ctx.closePath();
+
+                // 画面外に出たら削除
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    enemyBullets.splice(index, 1);
+                }
+            });
+        }
+
+        // 衝突判定
+        function checkCollisions() {
+            // プレイヤーの弾と敵の衝突
+            playerBullets.forEach((bullet, bIndex) => {
+                enemies.forEach((enemy, eIndex) => {
+                    // 円同士の衝突判定
+                    const dx = (bullet.x + bullet.width / 2) - (enemy.x + enemy.width / 2);
+                    const dy = (bullet.y + bullet.height / 2) - (enemy.y + enemy.height / 2);
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < (bullet.width / 2 + enemy.hitRadius)) {
+                        playerBullets.splice(bIndex, 1);
+                        enemies.splice(eIndex, 1);
+                        score += 10;
+                        scoreDisplay.textContent = score;
+                        if (score > 500) {
+                            enemyRate = score / 10000
+                            if (enemyRate > 0.9) {
+                                enemyRate = 0.9
+                            }
+                        }
+                        enemyRateDisplay.textContent = enemyRate;
+                    }
+                });
+            });
+
+            // 敵の弾とプレイヤーの衝突
+            enemyBullets.forEach((bullet, bIndex) => {
+                // 円同士の衝突判定
+                const dx = (bullet.x + bullet.width / 2) - (player.x + player.width / 2);
+                const dy = (bullet.y + bullet.height / 2) - (player.y + player.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < (bullet.hitRadius + player.hitRadius)) {
+                    enemyBullets.splice(bIndex, 1);
+                    lives--;
+                    updateLifeDisplay();
+                    if (lives <= 0) {
+                        gameOver = true;
+                    }
+                }
+            });
+
+            // 敵とプレイヤーの衝突
+            enemies.forEach((enemy, eIndex) => {
+                // 円同士の衝突判定
+                const dx = (enemy.x + enemy.width / 2) - (player.x + player.width / 2);
+                const dy = (enemy.y + enemy.height / 2) - (player.y + player.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < (enemy.hitRadius + player.hitRadius)) {
+                    enemies.splice(eIndex, 1);
+                    lives--;
+                    updateLifeDisplay();
+                    if (lives <= 0) {
+                        gameOver = true;
+                    }
+                }
+            });
+        }
+
+        // ライフ表示の更新
+        function updateLifeDisplay() {
+            lifeIconsContainer.innerHTML = ''; // 既存のアイコンをクリア
+            for (let i = 0; i < maxLives; i++) {
+                const lifeIcon = document.createElement('div');
+                lifeIcon.classList.add('life-icon');
+                if (i >= lives) {
+                    lifeIcon.classList.add('empty');
+                }
+                lifeIconsContainer.appendChild(lifeIcon);
+            }
+        }
+
+        // ゲームループ
+        function gameLoop() {
+            if (!gameStarted) {
+                return; // ゲーム開始していなければ何もしない
+            }
+            if (gameOver) {
+                cancelAnimationFrame(gameLoopId);
+                gameMessage.style.display = 'flex';
+                messageText.textContent = `GAME OVER\nScore: ${score}`;
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // プレイヤーの移動
+            if (keys.left && player.x > 0) {
+                player.x -= player.speed;
+            }
+            if (keys.right && player.x < canvas.width - player.width) {
+                player.x += player.speed;
+            }
+            if (keys.up && player.y > 0) {
+                player.y -= player.speed;
+            }
+            if (keys.down && player.y < canvas.height - player.height) {
+                player.y += player.speed;
+            }
+
+            // プレイヤーの射撃
+            if (keys.space && Math.random() < 0.15) { // 射撃頻度
+                createPlayerBullet();
+            }
+
+            // 敵の生成
+            if (Math.random() < enemyRate) { // 敵生成頻度
+                createEnemy();
+            }
+
+            // 更新と描画
+            updatePlayerBullets();
+            updateEnemies();
+            updateEnemyBullets();
+            drawPlayer();
+
+            // 衝突判定
+            checkCollisions();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // キーイベントリスナー
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') {
+                keys.left = true;
+            } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                keys.right = true;
+            } else if (e.key === 'ArrowUp' || e.key === 'w') {
+                keys.up = true;
+            } else if (e.key === 'ArrowDown' || e.key === 's') {
+                keys.down = true;
+            } else if (e.key === ' ') {
+                keys.space = true;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') {
+                keys.left = false;
+            } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                keys.right = false;
+            } else if (e.key === 'ArrowUp' || e.key === 'w') {
+                keys.up = false;
+            } else if (e.key === 'ArrowDown' || e.key === 's') {
+                keys.down = false;
+            } else if (e.key === ' ') {
+                keys.space = false;
+            }
+        });
+
+        // リスタートボタン
+        restartButton.addEventListener('click', () => {
+            score = 0;
+            lives = maxLives;
+            gameOver = false;
+            scoreDisplay.textContent = score;
+            updateLifeDisplay();
+            gameMessage.style.display = 'none';
+            playerBullets.length = 0;
+            enemies.length = 0;
+            enemyBullets.length = 0;
+            player.x = canvas.width / 2 - 16;
+            player.y = canvas.height - 64;
+            enemyRate = 0.05
+            gameLoop();
+        });
+
+        // ゲーム開始ボタン
+        startButton.addEventListener('click', () => {
+            gameStarted = true;
+            startScreen.style.display = 'none';
+            gameLoop();
+        });
+
+        // 初期表示
+        updateLifeDisplay(); // 初期ライフ表示
+        startScreen.style.display = 'flex';
+
+    </script>
+</body>
+</html>

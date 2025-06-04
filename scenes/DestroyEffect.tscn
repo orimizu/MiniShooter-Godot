@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3 uid="uid://cxhyg8vnbjmwr"]
+
+[ext_resource type="Script" path="res://scripts/DestroyEffect.gd" id="1_ypqyh"]
+
+[sub_resource type="Gradient" id="Gradient_4s8qk"]
+offsets = PackedFloat32Array(0, 0.3, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 0.8, 0.2, 1, 1, 0.4, 0, 0.8, 1, 0, 0, 0)
+
+[node name="DestroyEffect" type="CPUParticles2D"]
+emitting = false
+amount = 20
+lifetime = 0.8
+one_shot = true
+preprocess = 0.0
+speed_scale = 1.5
+local_coords = true
+emission_shape = 1
+emission_sphere_radius = 5.0
+spread = 45.0
+initial_velocity_min = 100.0
+initial_velocity_max = 250.0
+damping_min = 50.0
+damping_max = 100.0
+scale_amount_min = 0.5
+scale_amount_max = 1.5
+color_ramp = SubResource("Gradient_4s8qk")
+script = ExtResource("1_ypqyh")
