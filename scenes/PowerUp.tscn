@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cgk4nf8j9l2xd"]
+
+[ext_resource type="Script" path="res://scripts/PowerUp.gd" id="1_powerup_script"]
+
+[node name="PowerUp" type="Area2D"]
+script = ExtResource("1_powerup_script")
