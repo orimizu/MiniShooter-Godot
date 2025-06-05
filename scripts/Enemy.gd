@@ -24,6 +24,10 @@ var current_hp: int = 1
 var color_type: String = "red"
 var game_manager: Node2D
 
+# ボス撃破後の撤退状態
+var is_retreating: bool = false
+var retreat_speed_multiplier: float = 3.0
+
 # 敵のドットパターン
 var enemy_patterns = {
 	"red": [
@@ -167,6 +171,9 @@ func initialize_enemy():
 	
 	# 体力を最大値に設定
 	current_hp = max_hp
+	
+	# 難易度設定を適用
+	apply_difficulty_settings()
 
 func get_random_enemy_type() -> String:
 	var current_score = 0
@@ -228,6 +235,11 @@ func get_random_enemy_type() -> String:
 	return "red"
 
 func update_movement(delta):
+	# 撤退中の場合は下方向へ高速移動
+	if is_retreating:
+		velocity = Vector2(0, speed * retreat_speed_multiplier)
+		return
+	
 	match move_pattern:
 		0:  # まっすぐ
 			velocity = Vector2(0, speed)
@@ -253,6 +265,10 @@ func update_movement(delta):
 			speed_change_counter = 0.0
 
 func update_shooting(delta):
+	# 撤退中は弾を撃たない
+	if is_retreating:
+		return
+		
 	fire_counter += delta
 	if fire_counter >= fire_rate / 60.0:
 		shoot()
@@ -268,7 +284,12 @@ func shoot():
 		var bullet = bullet_scene.instantiate()
 		bullet.position = global_position
 		bullet.direction = Vector2(cos(bullet_angle), sin(bullet_angle))
-		bullet.speed = 120.0
+		
+		# 基本弾速に難易度倍率を適用
+		var base_bullet_speed = 120.0
+		var bullet_speed_multiplier = get_meta("bullet_speed_multiplier", 1.0)
+		bullet.speed = base_bullet_speed * bullet_speed_multiplier
+		
 		bullet.modulate = Color.LIGHT_PINK
 		emit_signal("bullet_fired", bullet)
 
@@ -326,3 +347,26 @@ func draw_pixel_art():
 				var color2 = enemy_color2
 				color2.a = alpha
 				draw_rect(rect, color2)
+
+func apply_difficulty_settings():
+	# GameManagerから難易度設定を取得して適用
+	var health_multiplier = get_meta("difficulty_health_multiplier", 1.0)
+	var speed_multiplier = get_meta("difficulty_speed_multiplier", 1.0) 
+	var bullet_speed_multiplier = get_meta("difficulty_bullet_speed_multiplier", 1.0)
+	
+	# 体力を難易度に応じて調整
+	max_hp = int(max_hp * health_multiplier)
+	current_hp = max_hp
+	
+	# 移動速度を難易度に応じて調整
+	speed *= speed_multiplier
+	
+	# 弾速は射撃時に適用されるため、メタデータとして保存
+	set_meta("bullet_speed_multiplier", bullet_speed_multiplier)
+	
+	print("Enemy difficulty applied: HP=", max_hp, " Speed=", speed, " BulletSpeed=", bullet_speed_multiplier)
+
+# 撤退開始関数
+func start_retreat():
+	is_retreating = true
+	print("Enemy ", color_type, " starting retreat")

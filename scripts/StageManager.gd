@@ -15,6 +15,11 @@ var is_boss_spawned: bool = false
 var stage_active: bool = false
 var game_manager: Node2D
 
+# ステージ移行期間管理
+var is_stage_transitioning: bool = false
+var transition_phase: String = ""  # "retreat", "clear_display", "bg_change", "spawn_delay"
+var transition_timer: float = 0.0
+
 # ステージごとの設定
 var stage_configs = {
 	1: {
@@ -63,6 +68,13 @@ func start_stage(stage_number: int):
 	is_boss_spawned = false
 	stage_active = true
 	
+	# 前のステージのボスが残っていれば削除
+	if game_manager and is_instance_valid(game_manager):
+		if is_instance_valid(game_manager.current_boss):
+			print("Cleaning up previous stage boss")
+			game_manager.current_boss.queue_free()
+			game_manager.current_boss = null
+	
 	var config = stage_configs.get(current_stage, stage_configs[1])
 	
 	# 背景色を変更
@@ -75,6 +87,11 @@ func start_stage(stage_number: int):
 func _process(delta):
 	if not stage_active:
 		return
+	
+	# ステージ移行期間の処理
+	if is_stage_transitioning:
+		process_stage_transition(delta)
+		return
 		
 	stage_timer += delta
 	
@@ -82,9 +99,14 @@ func _process(delta):
 	if not is_boss_spawned and stage_timer >= BOSS_SPAWN_TIME:
 		spawn_boss()
 	
-	# ステージ時間制限チェック（ボスなしでクリア）
-	if stage_timer >= STAGE_DURATION and not is_boss_spawned:
-		complete_stage()
+	# ステージ時間制限チェック
+	if stage_timer >= STAGE_DURATION:
+		if not is_boss_spawned:
+			# ボスが出現していない場合はそのままクリア
+			complete_stage()
+		else:
+			# ボスが出現済みの場合は強制的にクリア（ボス削除）
+			force_stage_clear()
 
 func spawn_boss():
 	is_boss_spawned = true
@@ -120,6 +142,10 @@ func spawn_boss():
 	# GameManagerに追加
 	game_manager.add_child(boss)
 	
+	# GameManagerにボスを登録
+	if game_manager.has_method("register_boss"):
+		game_manager.register_boss(boss)
+	
 	print("Boss spawned: ", config.boss_type, " with ", boss.max_health, " health")
 
 func _on_boss_destroyed(score_points: int):
@@ -127,10 +153,18 @@ func _on_boss_destroyed(score_points: int):
 	if game_manager:
 		game_manager.add_score(score_points)
 		game_manager.play_sound.emit("enemy_destroy")
+		# GameManagerからボス登録を解除
+		if game_manager.has_method("unregister_boss"):
+			game_manager.unregister_boss()
+		# 実績システムにボス撃破を通知
+		if game_manager.achievement_manager:
+			game_manager.achievement_manager.increment_stat("bosses_killed", 1)
 	
-	# ステージクリア
-	await get_tree().create_timer(1.0).timeout
-	complete_stage()
+	# ボス撃破フラグをリセット
+	is_boss_spawned = false
+	
+	# 移行期間を開始
+	start_stage_transition()
 
 func complete_stage():
 	stage_active = false
@@ -138,17 +172,41 @@ func complete_stage():
 	
 	print("Stage ", current_stage, " cleared!")
 	
+	# 実績システムにステージクリアを通知
+	if game_manager and game_manager.achievement_manager:
+		game_manager.achievement_manager.on_stage_clear()
+	
 	# ステージクリア演出
 	show_stage_clear_message()
 	
 	# 次のステージへ
 	if current_stage < MAX_STAGES:
 		await get_tree().create_timer(3.0).timeout
+		# 次のステージ開始時に実績システムに通知
+		if game_manager and game_manager.achievement_manager:
+			game_manager.achievement_manager.on_stage_start()
 		start_stage(current_stage + 1)
 	else:
 		emit_signal("all_stages_cleared")
 		print("All stages cleared! Congratulations!")
 		show_all_clear_message()
+
+func force_stage_clear():
+	# 時間切れによる強制ステージクリア（ボスを削除）
+	print("Stage ", current_stage, " time limit reached - forcing clear")
+	
+	# ボスを強制削除
+	if game_manager and is_instance_valid(game_manager):
+		if is_instance_valid(game_manager.current_boss):
+			print("Removing boss due to time limit")
+			game_manager.current_boss.queue_free()
+			game_manager.current_boss = null
+	
+	# ボス状態をリセット
+	is_boss_spawned = false
+	
+	# 通常のステージクリア処理を実行
+	complete_stage()
 
 func show_stage_clear_message():
 	# UIマネージャーにステージクリアメッセージを表示させる
@@ -199,4 +257,82 @@ func reset():
 	stage_timer = 0.0
 	is_boss_spawned = false
 	stage_active = false
+	is_stage_transitioning = false
+	transition_phase = ""
+	transition_timer = 0.0
 	RenderingServer.set_default_clear_color(Color.BLACK)
+
+# ステージ移行期間開始
+func start_stage_transition():
+	print("Starting stage transition")
+	is_stage_transitioning = true
+	transition_phase = "retreat"
+	transition_timer = 0.0
+	
+	# すべての敵に撤退を指示
+	if game_manager:
+		for enemy in game_manager.enemies:
+			if is_instance_valid(enemy) and enemy.has_method("start_retreat"):
+				enemy.start_retreat()
+
+# ステージ移行期間の処理
+func process_stage_transition(delta):
+	transition_timer += delta
+	
+	match transition_phase:
+		"retreat":
+			# 敵の撤退フェーズ：敵が画面から消えるまで待つ
+			if are_all_enemies_gone():
+				print("All enemies retreated, showing stage clear")
+				transition_phase = "clear_display"
+				transition_timer = 0.0
+				show_stage_clear_message()
+		
+		"clear_display":
+			# ステージクリア表示フェーズ：3秒間表示
+			if transition_timer >= 3.0:
+				print("Stage clear message finished, changing background")
+				transition_phase = "bg_change"
+				transition_timer = 0.0
+				change_stage_background()
+		
+		"bg_change":
+			# 背景変更フェーズ：即座に次へ
+			transition_phase = "spawn_delay"
+			transition_timer = 0.0
+		
+		"spawn_delay":
+			# 敵出現待機フェーズ：3秒待機
+			if transition_timer >= 3.0:
+				print("Spawn delay finished, completing stage transition")
+				complete_stage_transition()
+
+# すべての敵が画面から消えたかチェック
+func are_all_enemies_gone() -> bool:
+	if not game_manager:
+		return true
+	
+	for enemy in game_manager.enemies:
+		if is_instance_valid(enemy):
+			# 敵が画面内にまだいる場合はfalse
+			if enemy.position.y < 700:
+				return false
+	
+	return true
+
+# 背景色を次のステージに変更
+func change_stage_background():
+	var next_stage = current_stage + 1
+	if next_stage <= MAX_STAGES:
+		var next_config = stage_configs.get(next_stage, stage_configs[1])
+		RenderingServer.set_default_clear_color(next_config.bg_color)
+		print("Background changed to stage ", next_stage, " color")
+
+# ステージ移行期間完了
+func complete_stage_transition():
+	is_stage_transitioning = false
+	transition_phase = ""
+	transition_timer = 0.0
+	
+	# 通常のステージクリア処理を実行
+	complete_stage()

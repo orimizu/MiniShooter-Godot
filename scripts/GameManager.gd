@@ -42,6 +42,7 @@ var cleanup_frequency: int = 60  # 60フレームに1回重いクリーンアッ
 var enemies: Array = []
 var player_bullets: Array = []
 var enemy_bullets: Array = []
+var current_boss: Area2D = null  # 現在のボスの参照
 
 # オブジェクトプールの追加（将来的な最適化のため）
 var bullet_pool: Array = []
@@ -56,6 +57,8 @@ var objects_cleaned_this_frame: int = 0
 var sound_manager: Node
 var high_score_manager: Node
 var stage_manager: Node
+var settings_manager: Node
+var achievement_manager: Node
 
 func _ready():
 	lives = max_lives
@@ -88,6 +91,21 @@ func _ready():
 		add_child(stage_manager)
 	else:
 		print("Failed to load StageManager.gd")
+	
+	# 設定マネージャーを作成
+	var SettingsManagerScript = preload("res://scripts/SettingsManager.gd")
+	settings_manager = SettingsManagerScript.new()
+	settings_manager.name = "SettingsManager"
+	add_child(settings_manager)
+	
+	# 実績マネージャーを作成
+	var AchievementManagerScript = preload("res://scripts/AchievementManager.gd")
+	achievement_manager = AchievementManagerScript.new()
+	achievement_manager.name = "AchievementManager"
+	add_child(achievement_manager)
+	
+	# 実績シグナルを接続
+	achievement_manager.achievement_unlocked.connect(_on_achievement_unlocked)
 	
 	# プレイヤーの初期化
 	spawn_player()
@@ -128,13 +146,21 @@ func _process(delta):
 	if Input.is_action_just_pressed("bomb") and bomb_cooldown <= 0 and lives > 0:
 		use_bomb()
 		
-	# 敵の生成（ステージ倍率を適用）
-	var actual_enemy_rate = enemy_rate
-	if stage_manager:
-		actual_enemy_rate *= stage_manager.get_enemy_rate_multiplier()
-	
-	if randf() < actual_enemy_rate:
-		spawn_enemy()
+	# 敵の生成（ステージ移行期間中は停止）
+	if stage_manager and stage_manager.is_stage_transitioning:
+		# ステージ移行期間中は敵を出現させない
+		pass
+	else:
+		# 通常の敵出現処理（ステージ倍率 + 難易度倍率を適用）
+		var actual_enemy_rate = enemy_rate
+		if stage_manager:
+			actual_enemy_rate *= stage_manager.get_enemy_rate_multiplier()
+		if settings_manager:
+			var difficulty_config = settings_manager.get_difficulty_config()
+			actual_enemy_rate *= difficulty_config.enemy_spawn_multiplier
+		
+		if randf() < actual_enemy_rate:
+			spawn_enemy()
 	
 	# 弾丸の更新
 	update_bullets(delta)
@@ -164,6 +190,14 @@ func spawn_enemy():
 		enemy.destroyed.connect(_on_enemy_destroyed)
 		# GameManagerの参照を渡す（スコアベース敵選択用）
 		enemy.game_manager = self
+		
+		# 難易度設定を敵に適用
+		if settings_manager:
+			var difficulty_config = settings_manager.get_difficulty_config()
+			enemy.set_meta("difficulty_health_multiplier", difficulty_config.enemy_health_multiplier)
+			enemy.set_meta("difficulty_speed_multiplier", difficulty_config.enemy_speed_multiplier)
+			enemy.set_meta("difficulty_bullet_speed_multiplier", difficulty_config.bullet_speed_multiplier)
+		
 		enemies.append(enemy)
 
 func _on_player_bullet_fired(bullet):
@@ -210,11 +244,19 @@ func _on_enemy_destroyed(enemy):
 	emit_signal("enemy_destroyed_effect", enemy.global_position, score_points)
 	emit_signal("play_sound", "enemy_destroyed")
 	
+	# 実績システムに通知
+	if achievement_manager:
+		achievement_manager.increment_stat("enemies_killed", 1)
+	
 	add_score(score_points)
 
 func add_score(points: int):
 	score += points
 	emit_signal("score_changed", score)
+	
+	# 実績システムに通知
+	if achievement_manager:
+		achievement_manager.on_score_updated(score)
 	
 	# スコアに応じて敵出現率を段階的に調整
 	var old_rate = enemy_rate
@@ -241,6 +283,10 @@ func take_damage():
 	# プレイヤーの被弾エフェクトを発動
 	if is_instance_valid(player) and player.has_method("trigger_damage_flash"):
 		player.trigger_damage_flash()
+	
+	# 実績システムに通知
+	if achievement_manager:
+		achievement_manager.on_player_damaged()
 	
 	# 画面振動エフェクト
 	trigger_screen_shake(5.0, 0.2)
@@ -280,21 +326,44 @@ func check_collisions():
 		# Area2Dの重複検出を使用
 		var overlapping_areas = bullet.get_overlapping_areas()
 		var hit_target = false
+		var is_piercing = bullet.get_meta("piercing", false)
+		var is_double_damage = bullet.get_meta("double_damage", false)
+		
 		for area in overlapping_areas:
 			# 通常の敵との衝突
 			if is_instance_valid(area) and area in enemies:
 				bullet.queue_free()
 				player_bullets.remove_at(i)
-				area.take_damage()
+				# Sアイテム効果：2倍ダメージ
+				if is_double_damage:
+					area.take_damage()  # 1回目
+					if is_instance_valid(area):  # 敵がまだ生きている場合
+						area.take_damage()  # 2回目
+				else:
+					area.take_damage()
 				hit_target = true
 				break
 			# ボスとの衝突
 			elif is_instance_valid(area) and area.has_method("take_damage") and area.get_script() and area.get_script().get_path().get_file() == "Boss.gd":
 				bullet.queue_free()
 				player_bullets.remove_at(i)
-				area.take_damage(1)  # ボスは1ダメージ
+				# Sアイテム効果：ボスにも2倍ダメージ
+				if is_double_damage:
+					area.take_damage(2)  # 2ダメージ
+				else:
+					area.take_damage(1)  # 1ダメージ
 				hit_target = true
 				break
+			# Rアイテム効果：貫通弾と敵弾の衝突
+			elif is_piercing and is_instance_valid(area) and area.get("bullet_type") == "enemy":
+				# 敵弾を削除
+				area.queue_free()
+				# 敵弾リストからも削除
+				var enemy_bullet_index = enemy_bullets.find(area)
+				if enemy_bullet_index != -1:
+					enemy_bullets.remove_at(enemy_bullet_index)
+				emit_signal("play_sound", "bullet_destroyed")
+				# 貫通弾は消えない（hit_targetをtrueにしない）
 		if hit_target:
 			continue
 	
@@ -367,6 +436,10 @@ func start_game():
 	game_started = true
 	game_over_flag = false
 	
+	# 実績システムにステージ開始を通知
+	if achievement_manager:
+		achievement_manager.on_stage_start()
+	
 	# ステージ1を開始
 	if stage_manager:
 		stage_manager.start_stage(1)
@@ -380,11 +453,74 @@ func restart_game():
 	enemy_rate = 0.02
 	bomb_cooldown = 0.0
 	
+	# パワーアップ状態を完全リセット
+	reset_all_powerups()
+	
 	# ステージをリセット
 	if stage_manager:
 		stage_manager.reset()
 		stage_manager.start_stage(1)
 	
+	# すべてのオブジェクトを削除
+	cleanup_all_objects()
+	
+	# プレイヤーをリセット
+	reset_player()
+	
+	# UIを更新
+	emit_signal("score_changed", score)
+	emit_signal("lives_changed", lives)
+	emit_signal("enemy_rate_changed", enemy_rate)
+	
+	print("Game restarted with full reset")
+
+func continue_game():
+	# コンティニュー：ライフのみ回復、他は維持
+	game_over_flag = false
+	game_started = true
+	lives = max_lives
+	bomb_cooldown = 0.0
+	
+	# 敵と敵弾のみクリア（プレイヤー弾とボスは維持）
+	for enemy in enemies:
+		if is_instance_valid(enemy):
+			enemy.queue_free()
+	for bullet in enemy_bullets:
+		if is_instance_valid(bullet):
+			bullet.queue_free()
+	
+	# ボスは維持（コンティニューでボス戦継続）
+	# ボス戦中のコンティニューでは、ボスとの戦いを継続する
+	
+	enemies.clear()
+	enemy_bullets.clear()
+	
+	# プレイヤー位置のみリセット
+	if is_instance_valid(player):
+		player.position = Vector2(240, 576)
+	
+	# UIを更新
+	emit_signal("lives_changed", lives)
+	
+	print("Game continued - Lives restored, boss battle maintained")
+
+func reset_all_powerups():
+	# アクティブパワーアップをクリア
+	for effect_type in active_powerups.keys():
+		emit_signal("powerup_effect_ended", effect_type)
+	active_powerups.clear()
+	
+	# プレイヤーのパワーアップ状態をリセット
+	if is_instance_valid(player) and player.has_method("reset_powerup_effects"):
+		player.reset_powerup_effects()
+	
+	# パワーアップアイテムをクリア
+	for powerup in powerups:
+		if is_instance_valid(powerup):
+			powerup.queue_free()
+	powerups.clear()
+
+func cleanup_all_objects():
 	# すべてのオブジェクトを削除
 	for enemy in enemies:
 		if is_instance_valid(enemy):
@@ -395,19 +531,35 @@ func restart_game():
 	for bullet in enemy_bullets:
 		if is_instance_valid(bullet):
 			bullet.queue_free()
+	for powerup in powerups:
+		if is_instance_valid(powerup):
+			powerup.queue_free()
+	
+	# ボスも削除
+	if is_instance_valid(current_boss):
+		current_boss.queue_free()
+		current_boss = null
 	
 	enemies.clear()
 	player_bullets.clear()
 	enemy_bullets.clear()
-	
-	# プレイヤーをリセット
+	powerups.clear()
+
+func reset_player():
+	# プレイヤーの位置と状態をリセット
 	if is_instance_valid(player):
 		player.position = Vector2(240, 576)
-	
-	# UIを更新
-	emit_signal("score_changed", score)
-	emit_signal("lives_changed", lives)
-	emit_signal("enemy_rate_changed", enemy_rate)
+		# パワーアップ効果のリセットは reset_all_powerups() で実行済み
+
+func register_boss(boss: Area2D):
+	# ボスの参照を登録
+	current_boss = boss
+	print("Boss registered: ", boss.name)
+
+func unregister_boss():
+	# ボスの参照をクリア
+	current_boss = null
+	print("Boss unregistered")
 
 func trigger_screen_shake(intensity: float, duration: float):
 	# 画面振動を開始
@@ -447,19 +599,18 @@ func _on_powerup_collected(item_type: String):
 
 func apply_powerup_effect(item_type: String):
 	match item_type:
-		"P":  # Power - 攻撃力UP
-			active_powerups["power"] = 30.0  # 30秒間
-			emit_signal("powerup_effect_started", "power", 30.0)
+		"P":  # Power - 弾数UP（永続効果）
+			# Pアイテムは永続効果なので、タイマーではなく即座に適用
 			if is_instance_valid(player) and player.has_method("apply_power_boost"):
 				player.apply_power_boost()
-		"S":  # Speed - 移動速度UP
-			active_powerups["speed"] = 30.0  # 30秒間
-			emit_signal("powerup_effect_started", "speed", 30.0)
-			if is_instance_valid(player) and player.has_method("apply_speed_boost"):
-				player.apply_speed_boost()
-		"R":  # Rapid - 連射速度UP
-			active_powerups["rapid"] = 30.0  # 30秒間
-			emit_signal("powerup_effect_started", "rapid", 30.0)
+		"S":  # Size - 弾サイズ2倍UP
+			active_powerups["size"] = 30.0  # 30秒間
+			emit_signal("powerup_effect_started", "size", 30.0)
+			if is_instance_valid(player) and player.has_method("apply_size_boost"):
+				player.apply_size_boost()
+		"R":  # Rapid - 弾丸貫通（敵弾消去）
+			active_powerups["rapid"] = 10.0  # 10秒間
+			emit_signal("powerup_effect_started", "rapid", 10.0)
 			if is_instance_valid(player) and player.has_method("apply_rapid_boost"):
 				player.apply_rapid_boost()
 		"B":  # Bomb - ボム回数+1
@@ -492,9 +643,9 @@ func update_powerup_timers(delta):
 				"power":
 					if player.has_method("remove_power_boost"):
 						player.remove_power_boost()
-				"speed":
-					if player.has_method("remove_speed_boost"):
-						player.remove_speed_boost()
+				"size":
+					if player.has_method("remove_size_boost"):
+						player.remove_size_boost()
 				"rapid":
 					if player.has_method("remove_rapid_boost"):
 						player.remove_rapid_boost()
@@ -517,3 +668,15 @@ func check_powerup_collisions():
 				powerup.collect()
 				powerups.remove_at(i)
 				break
+
+func _on_achievement_unlocked(achievement_id: String, achievement_data: Dictionary):
+	# 実績解除時の処理
+	print("Achievement unlocked: ", achievement_data.name)
+	
+	# ボーナススコアを付与
+	if "bonus_score" in achievement_data:
+		add_score(achievement_data.bonus_score)
+	
+	# UIに実績解除を通知（後でUIシステムを実装時に使用）
+	if ui and ui.has_method("show_achievement_notification"):
+		ui.show_achievement_notification(achievement_id, achievement_data)
