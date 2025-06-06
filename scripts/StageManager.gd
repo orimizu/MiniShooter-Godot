@@ -190,9 +190,15 @@ func complete_stage():
 			game_manager.achievement_manager.on_stage_start()
 		start_stage(current_stage + 1)
 	else:
+		# 全ステージクリア：ゲームを停止状態にする
+		stage_active = false
 		emit_signal("all_stages_cleared")
 		print("All stages cleared! Congratulations!")
 		show_all_clear_message()
+		
+		# ゲームマネージャーに全クリア状態を通知
+		if game_manager:
+			game_manager.on_all_stages_cleared()
 
 func force_stage_clear():
 	# この関数は現在使用されていません（ボス撃破が必須になったため）

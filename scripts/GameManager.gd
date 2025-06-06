@@ -24,6 +24,7 @@ var enemy_rate: float = 0.02
 var game_over_flag: bool = false
 var game_started: bool = false
 var bomb_cooldown: float = 0.0
+var all_stages_cleared: bool = false
 
 # パワーアップ関連
 var powerup_scene: PackedScene = preload("res://scenes/PowerUp.tscn")
@@ -116,7 +117,7 @@ func _ready():
 	emit_signal("enemy_rate_changed", enemy_rate)
 
 func _process(delta):
-	if not game_started or game_over_flag:
+	if not game_started or game_over_flag or all_stages_cleared:
 		return
 	
 	# パフォーマンス統計のリセット
@@ -448,6 +449,7 @@ func restart_game():
 	# ゲーム状態をリセット
 	game_over_flag = false
 	game_started = true
+	all_stages_cleared = false
 	score = 0
 	lives = max_lives
 	enemy_rate = 0.02
@@ -680,3 +682,13 @@ func _on_achievement_unlocked(achievement_id: String, achievement_data: Dictiona
 	# UIに実績解除を通知（後でUIシステムを実装時に使用）
 	if ui and ui.has_method("show_achievement_notification"):
 		ui.show_achievement_notification(achievement_id, achievement_data)
+
+func on_all_stages_cleared():
+	# 全ステージクリア時の処理
+	all_stages_cleared = true
+	print("All stages cleared! Game complete!")
+	
+	# 5秒後にゲームオーバー画面を表示（スコア登録のため）
+	await get_tree().create_timer(5.0).timeout
+	game_over_flag = true
+	emit_signal("game_over")

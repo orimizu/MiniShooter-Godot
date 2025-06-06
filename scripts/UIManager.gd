@@ -342,17 +342,25 @@ func show_all_stages_clear():
 	# 全ステージクリアメッセージを表示
 	var clear_label = Label.new()
 	clear_label.text = "ALL STAGES CLEAR!\nCONGRATULATIONS!"
-	clear_label.add_theme_font_size_override("font_size", 64)
+	clear_label.add_theme_font_size_override("font_size", 36)  # フォントサイズを調整
 	clear_label.add_theme_color_override("font_color", Color(1, 0.84, 0))  # ゴールド
-	clear_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	clear_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	clear_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	# 画面全体をカバーするサイズに設定
+	clear_label.size = Vector2(480, 640)
+	clear_label.position = Vector2(0, 0)
 	add_child(clear_label)
 	
 	# 豪華なアニメーション
 	var tween = create_tween()
 	tween.set_loops(3)
-	tween.tween_property(clear_label, "scale", Vector2(1.2, 1.2), 0.5)
+	tween.tween_property(clear_label, "scale", Vector2(1.1, 1.1), 0.5)
 	tween.tween_property(clear_label, "scale", Vector2(1.0, 1.0), 0.5)
+	
+	# 5秒後にラベルを削除
+	await get_tree().create_timer(5.0).timeout
+	clear_label.queue_free()
 	
 	# 連続フラッシュ
 	for i in range(5):
