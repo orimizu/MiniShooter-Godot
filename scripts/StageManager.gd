@@ -182,9 +182,6 @@ func complete_stage():
 	if game_manager and game_manager.achievement_manager:
 		game_manager.achievement_manager.on_stage_clear()
 	
-	# ステージクリア演出
-	show_stage_clear_message()
-	
 	# 次のステージへ
 	if current_stage < MAX_STAGES:
 		await get_tree().create_timer(3.0).timeout
