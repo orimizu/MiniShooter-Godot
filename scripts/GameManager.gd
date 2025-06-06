@@ -295,6 +295,9 @@ func take_damage():
 	
 	if lives <= 0:
 		game_over_flag = true
+		# ゲームオーバー時にステージも停止
+		if stage_manager:
+			stage_manager.stage_active = false
 		emit_signal("game_over")
 
 func update_bullets(_delta):
@@ -431,6 +434,9 @@ func use_bomb():
 	# ライフが0になったらゲームオーバー
 	if lives <= 0:
 		game_over_flag = true
+		# ゲームオーバー時にステージも停止
+		if stage_manager:
+			stage_manager.stage_active = false
 		emit_signal("game_over")
 
 func start_game():
@@ -482,6 +488,10 @@ func continue_game():
 	game_started = true
 	lives = max_lives
 	bomb_cooldown = 0.0
+	
+	# ステージを再開
+	if stage_manager:
+		stage_manager.stage_active = true
 	
 	# 敵と敵弾のみクリア（プレイヤー弾とボスは維持）
 	for enemy in enemies:

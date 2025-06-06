@@ -88,6 +88,10 @@ func _process(delta):
 	if not stage_active:
 		return
 	
+	# ゲームオーバーまたは全クリア状態ではステージ進行を停止
+	if game_manager and (game_manager.game_over_flag or game_manager.all_stages_cleared):
+		return
+	
 	# ステージ移行期間の処理
 	if is_stage_transitioning:
 		process_stage_transition(delta)
