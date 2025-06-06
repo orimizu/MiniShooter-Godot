@@ -99,14 +99,10 @@ func _process(delta):
 	if not is_boss_spawned and stage_timer >= BOSS_SPAWN_TIME:
 		spawn_boss()
 	
-	# ステージ時間制限チェック
-	if stage_timer >= STAGE_DURATION:
-		if not is_boss_spawned:
-			# ボスが出現していない場合はそのままクリア
-			complete_stage()
-		else:
-			# ボスが出現済みの場合は強制的にクリア（ボス削除）
-			force_stage_clear()
+	# ステージ時間制限チェック（ボス出現前のみ）
+	if stage_timer >= STAGE_DURATION and not is_boss_spawned:
+		# ボスが出現していない場合はそのままクリア
+		complete_stage()
 
 func spawn_boss():
 	is_boss_spawned = true
@@ -119,22 +115,32 @@ func spawn_boss():
 	boss.position = Vector2(240, 100)  # 画面上部中央
 	
 	# ボス設定
+	var base_health = 50
 	match config.boss_type:
 		"green_boss":
-			boss.max_health = 50
+			base_health = 50
 			boss.score_points = 1000
 		"blue_boss":
-			boss.max_health = 75
+			base_health = 75
 			boss.score_points = 1500
 		"yellow_boss":
-			boss.max_health = 100
+			base_health = 100
 			boss.score_points = 2000
 		"red_boss":
-			boss.max_health = 125
+			base_health = 125
 			boss.score_points = 3000
 		"final_boss":
-			boss.max_health = 150
+			base_health = 150
 			boss.score_points = 5000
+	
+	# 難易度による体力調整
+	var boss_health_multiplier = 1.0
+	if game_manager and game_manager.settings_manager:
+		var difficulty_config = game_manager.settings_manager.get_difficulty_config()
+		boss_health_multiplier = difficulty_config.boss_health_multiplier
+	
+	boss.max_health = int(base_health * boss_health_multiplier)
+	print("Boss health adjusted: base=", base_health, " multiplier=", boss_health_multiplier, " final=", boss.max_health)
 	
 	# ボスの破壊シグナルを接続
 	boss.boss_destroyed.connect(_on_boss_destroyed)
@@ -192,6 +198,7 @@ func complete_stage():
 		show_all_clear_message()
 
 func force_stage_clear():
+	# この関数は現在使用されていません（ボス撃破が必須になったため）
 	# 時間切れによる強制ステージクリア（ボスを削除）
 	print("Stage ", current_stage, " time limit reached - forcing clear")
 	
