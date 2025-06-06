@@ -367,6 +367,33 @@ func show_all_stages_clear():
 		await get_tree().create_timer(0.3).timeout
 		flash_screen()
 
+func show_boss_warning(stage_number: int):
+	# ボス警告メッセージを表示
+	var warning_label = Label.new()
+	warning_label.text = "⚠️ WARNING ⚠️\nBOSS APPROACHING!"
+	warning_label.add_theme_font_size_override("font_size", 32)
+	warning_label.add_theme_color_override("font_color", Color.RED)
+	warning_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	warning_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	# 画面全体をカバーするサイズに設定
+	warning_label.size = Vector2(480, 640)
+	warning_label.position = Vector2(0, 0)
+	add_child(warning_label)
+	
+	# 点滅アニメーション
+	var tween = create_tween()
+	tween.set_loops(3)
+	tween.tween_property(warning_label, "modulate:a", 0.3, 0.3)
+	tween.tween_property(warning_label, "modulate:a", 1.0, 0.3)
+	
+	# 2秒後にラベルを削除
+	await get_tree().create_timer(2.0).timeout
+	warning_label.queue_free()
+	
+	# 警告フラッシュ
+	flash_damage()
+
 func setup_progress_bar_style():
 	if main_stage_progress_bar:
 		# プログレスバーを目立たせる

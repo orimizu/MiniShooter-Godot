@@ -7,7 +7,7 @@ signal boss_spawned(boss)
 
 const MAX_STAGES = 5
 const STAGE_DURATION = 60.0  # 各ステージ60秒
-const BOSS_SPAWN_TIME = 55.0  # 55秒でボス出現
+const BOSS_SPAWN_TIME = 60.0  # 60秒（100%）でボス出現
 
 var current_stage: int = 1
 var stage_timer: float = 0.0
@@ -153,6 +153,9 @@ func spawn_boss():
 		game_manager.register_boss(boss)
 	
 	print("Boss spawned: ", config.boss_type, " with ", boss.max_health, " health")
+	
+	# ボス出現演出
+	show_boss_warning_message()
 
 func _on_boss_destroyed(score_points: int):
 	# ボス撃破時の処理
@@ -228,6 +231,11 @@ func show_all_clear_message():
 	if game_manager and is_instance_valid(game_manager) and game_manager.get("ui") != null:
 		game_manager.ui.show_all_stages_clear()
 
+func show_boss_warning_message():
+	# UIマネージャーにボス警告メッセージを表示させる
+	if game_manager and is_instance_valid(game_manager) and game_manager.get("ui") != null:
+		game_manager.ui.show_boss_warning(current_stage)
+
 func get_enemy_type_for_spawn() -> String:
 	var config = stage_configs.get(current_stage, stage_configs[1])
 	var weights = config.enemy_weights
@@ -257,6 +265,9 @@ func get_current_stage() -> int:
 func get_stage_progress() -> float:
 	if not stage_active:
 		return 0.0
+	# ボス出現前は通常の進行度、ボス出現後は100%で固定
+	if is_boss_spawned:
+		return 1.0
 	return stage_timer / STAGE_DURATION
 
 func is_boss_phase() -> bool:
