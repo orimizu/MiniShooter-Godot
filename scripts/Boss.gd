@@ -21,6 +21,43 @@ var boss_patterns = {
 			{"health_threshold": 15, "attack_pattern": "16_way", "attack_rate": 1.0, "move_speed": 50},
 			{"health_threshold": 0, "attack_pattern": "24_way", "attack_rate": 0.7, "move_speed": 80}
 		]
+	},
+	"blue_boss": {
+		"color1": Color.BLUE,
+		"color2": Color(0, 0.5, 1.0),
+		"phases": [
+			{"health_threshold": 40, "attack_pattern": "8_way", "attack_rate": 1.3, "move_speed": 40},
+			{"health_threshold": 20, "attack_pattern": "16_way", "attack_rate": 0.9, "move_speed": 60},
+			{"health_threshold": 0, "attack_pattern": "24_way", "attack_rate": 0.6, "move_speed": 90}
+		]
+	},
+	"yellow_boss": {
+		"color1": Color.YELLOW,
+		"color2": Color(1.0, 1.0, 0.5),
+		"phases": [
+			{"health_threshold": 45, "attack_pattern": "8_way", "attack_rate": 1.2, "move_speed": 50},
+			{"health_threshold": 25, "attack_pattern": "16_way", "attack_rate": 0.8, "move_speed": 70},
+			{"health_threshold": 0, "attack_pattern": "24_way", "attack_rate": 0.5, "move_speed": 100}
+		]
+	},
+	"red_boss": {
+		"color1": Color.RED,
+		"color2": Color(1.0, 0.3, 0.3),
+		"phases": [
+			{"health_threshold": 50, "attack_pattern": "8_way", "attack_rate": 1.0, "move_speed": 60},
+			{"health_threshold": 30, "attack_pattern": "16_way", "attack_rate": 0.7, "move_speed": 80},
+			{"health_threshold": 0, "attack_pattern": "24_way", "attack_rate": 0.4, "move_speed": 120}
+		]
+	},
+	"final_boss": {
+		"color1": Color.MAGENTA,
+		"color2": Color(1.0, 0.2, 1.0),
+		"phases": [
+			{"health_threshold": 60, "attack_pattern": "8_way", "attack_rate": 0.9, "move_speed": 70},
+			{"health_threshold": 40, "attack_pattern": "16_way", "attack_rate": 0.6, "move_speed": 90},
+			{"health_threshold": 20, "attack_pattern": "24_way", "attack_rate": 0.4, "move_speed": 110},
+			{"health_threshold": 0, "attack_pattern": "32_way", "attack_rate": 0.3, "move_speed": 140}
+		]
 	}
 }
 

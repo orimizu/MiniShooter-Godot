@@ -69,8 +69,3 @@ func set_particle_color(enemy_color: String):
 			gradient.set_color(3, Color(1, 0, 0, 0))
 	
 	color_ramp = gradient
-
-func _on_ScoreLabel_item_rect_changed():
-	# スコアラベルの位置を調整
-	if score_label:
-		score_label.position = Vector2(-score_label.size.x / 2, -40)

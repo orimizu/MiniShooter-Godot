@@ -6,10 +6,10 @@ signal powerup_collected(item_type)
 @export var fall_speed: float = 50.0
 
 var item_configs = {
-	"P": {"name": "Power", "color": Color(1.0, 0.2, 0.2), "description": "Attack Power UP!"},      # 明るい赤
-	"S": {"name": "Speed", "color": Color(0.2, 0.5, 1.0), "description": "Movement Speed UP!"},    # 明るい青
-	"R": {"name": "Rapid", "color": Color(1.0, 1.0, 0.2), "description": "Fire Rate UP!"},         # 明るい黄色
-	"B": {"name": "Bomb", "color": Color(0.2, 1.0, 0.2), "description": "Bomb +1"},                # 明るい緑
+	"P": {"name": "Power", "color": Color(1.0, 0.2, 0.2), "description": "Bullet Count UP! (Permanent)"},      # 明るい赤
+	"S": {"name": "Size", "color": Color(0.2, 0.5, 1.0), "description": "Double Damage! (30s)"},    # 明るい青
+	"R": {"name": "Rapid", "color": Color(1.0, 1.0, 0.2), "description": "Piercing Bullets! (10s)"},         # 明るい黄色
+	"B": {"name": "Bomb", "color": Color(0.2, 1.0, 0.2), "description": "Life +1"},                # 明るい緑
 	"1UP": {"name": "1UP", "color": Color(1.0, 0.2, 1.0), "description": "Extra Life!"}            # 明るいマゼンタ
 }
 

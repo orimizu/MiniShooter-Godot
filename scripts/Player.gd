@@ -9,6 +9,11 @@ var shoot_timer: float = 0.0
 var shoot_interval: float = 0.1  # 元の射撃間隔に戻す
 var game_manager: Node2D
 
+# パワーアップ関連
+var power_level: int = 0  # Pアイテムで増加する弾数レベル（0-5）
+var bullet_double_damage: bool = false  # Sアイテムによる弾丸2倍ダメージ
+var bullet_piercing: bool = false  # Rアイテムによる弾丸貫通（敵弾消去）
+
 # 当たり判定可視化関連
 var show_hitbox: bool = true  # 十字マーク表示のON/OFF
 var hitbox_flash_timer: float = 0.0  # 被弾フラッシュのタイマー
@@ -72,26 +77,129 @@ func shoot():
 		return
 	
 	var score = game_manager.score
+	var total_power = power_level  # Pアイテムによる追加パワー
 	
-	# 基本の3方向弾（初期状態）
-	create_bullet(Vector2(0, -1))  # 前方
-	create_bullet(Vector2(0.5, -0.866))  # 右前30度
-	create_bullet(Vector2(-0.5, -0.866))  # 左前30度
-	
-	# スコア1000以上で5方向（後方弾追加）
+	# スコアベースのパワーアップ段階を計算
+	var score_power = 0
 	if score >= 1000:
-		create_bullet(Vector2(0.5, 0.866))  # 右後30度
-		create_bullet(Vector2(-0.5, 0.866))  # 左後30度
-	
-	# スコア3000以上で7方向（左右弾追加）
+		score_power += 1
 	if score >= 3000:
-		create_bullet(Vector2(1, 0))  # 右
-		create_bullet(Vector2(-1, 0))  # 左
-	
-	# スコア6000以上で9方向（斜め弾追加）
+		score_power += 1
 	if score >= 6000:
-		create_bullet(Vector2(0.707, -0.707))  # 右前45度
-		create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+		score_power += 1
+	
+	# 合計パワーレベル（最大8段階）
+	var effective_power = min(total_power + score_power, 8)
+	
+	# パワーレベルに応じた射撃パターン
+	match effective_power:
+		0:  # 3WAY（初期状態）
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+		1:  # 5WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+		2:  # 7WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+		3:  # 9WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+		4:  # 11WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+			create_bullet(Vector2(0.707, 0.707))  # 右後45度
+			create_bullet(Vector2(-0.707, 0.707))  # 左後45度
+		5:  # 13WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+			create_bullet(Vector2(0.707, 0.707))  # 右後45度
+			create_bullet(Vector2(-0.707, 0.707))  # 左後45度
+			create_bullet(Vector2(0.866, -0.5))  # 右前60度
+			create_bullet(Vector2(-0.866, -0.5))  # 左前60度
+		6:  # 15WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+			create_bullet(Vector2(0.707, 0.707))  # 右後45度
+			create_bullet(Vector2(-0.707, 0.707))  # 左後45度
+			create_bullet(Vector2(0.866, -0.5))  # 右前60度
+			create_bullet(Vector2(-0.866, -0.5))  # 左前60度
+			create_bullet(Vector2(0.866, 0.5))  # 右後60度
+			create_bullet(Vector2(-0.866, 0.5))  # 左後60度
+		7:  # 17WAY
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+			create_bullet(Vector2(0.707, 0.707))  # 右後45度
+			create_bullet(Vector2(-0.707, 0.707))  # 左後45度
+			create_bullet(Vector2(0.866, -0.5))  # 右前60度
+			create_bullet(Vector2(-0.866, -0.5))  # 左前60度
+			create_bullet(Vector2(0.866, 0.5))  # 右後60度
+			create_bullet(Vector2(-0.866, 0.5))  # 左後60度
+			create_bullet(Vector2(0.259, -0.966))  # 右前15度
+			create_bullet(Vector2(-0.259, -0.966))  # 左前15度
+		_:  # 18WAY（最大）
+			create_bullet(Vector2(0, -1))  # 前方
+			create_bullet(Vector2(0.5, -0.866))  # 右前30度
+			create_bullet(Vector2(-0.5, -0.866))  # 左前30度
+			create_bullet(Vector2(0.5, 0.866))  # 右後30度
+			create_bullet(Vector2(-0.5, 0.866))  # 左後30度
+			create_bullet(Vector2(1, 0))  # 右
+			create_bullet(Vector2(-1, 0))  # 左
+			create_bullet(Vector2(0.707, -0.707))  # 右前45度
+			create_bullet(Vector2(-0.707, -0.707))  # 左前45度
+			create_bullet(Vector2(0.707, 0.707))  # 右後45度
+			create_bullet(Vector2(-0.707, 0.707))  # 左後45度
+			create_bullet(Vector2(0.866, -0.5))  # 右前60度
+			create_bullet(Vector2(-0.866, -0.5))  # 左前60度
+			create_bullet(Vector2(0.866, 0.5))  # 右後60度
+			create_bullet(Vector2(-0.866, 0.5))  # 左後60度
+			create_bullet(Vector2(0.259, -0.966))  # 右前15度
+			create_bullet(Vector2(-0.259, -0.966))  # 左前15度
+			create_bullet(Vector2(0, 1))  # 後方
 
 func create_bullet(direction: Vector2):
 	var bullet = bullet_scene.instantiate()
@@ -99,6 +207,18 @@ func create_bullet(direction: Vector2):
 	bullet.direction = direction
 	bullet.speed = 400.0
 	bullet.modulate = Color.YELLOW
+	
+	# Sアイテム効果：弾の2倍ダメージ
+	if bullet_double_damage:
+		bullet.set_meta("double_damage", true)
+		bullet.modulate = Color.CYAN  # 2倍ダメージ弾は青色
+	
+	# Rアイテム効果：弾丸貫通（敵弾消去）
+	if bullet_piercing:
+		bullet.set_meta("piercing", true)
+		if not bullet_double_damage:  # 2倍ダメージ効果がない場合のみ色変更
+			bullet.modulate = Color.MAGENTA  # 貫通弾は紫色
+	
 	emit_signal("bullet_fired", bullet)
 
 func draw_pixel_art():
@@ -155,3 +275,43 @@ func trigger_damage_flash():
 	# 被弾時のフラッシュエフェクトを開始
 	hitbox_flash_timer = 0.3  # 0.3秒間フラッシュ
 	queue_redraw()  # 即座に再描画を要求
+
+# パワーアップ効果のメソッド群
+func apply_power_boost():
+	# パワーアップ（弾数増加）
+	power_level = min(5, power_level + 1)  # 最大5段階まで
+	print("Power Boost applied! Bullet count increased to level ", power_level)
+
+func apply_size_boost():
+	# 2倍ダメージブースト（弾のダメージ2倍）
+	bullet_double_damage = true
+	print("Double Damage applied! Bullets now deal 2x damage.")
+
+func apply_rapid_boost():
+	# 弾丸貫通（敵弾消去）
+	bullet_piercing = true
+	print("Piercing Bullets applied! Player bullets can destroy enemy bullets.")
+
+func remove_power_boost():
+	# パワーブースト効果を解除
+	power_level = max(0, power_level - 1)
+	print("Power Boost expired. Level decreased to ", power_level)
+
+func remove_size_boost():
+	# 2倍ダメージ効果を解除
+	bullet_double_damage = false
+	print("Double Damage expired. Bullet damage reset to normal.")
+
+func remove_rapid_boost():
+	# 弾丸貫通効果を解除
+	bullet_piercing = false
+	print("Piercing Bullets expired. Bullets no longer destroy enemy bullets.")
+
+func reset_powerup_effects():
+	# パワーアップ効果をリセット（デフォルト値に戻す）
+	power_level = 0
+	bullet_double_damage = false
+	bullet_piercing = false
+	speed = 200.0
+	shoot_interval = 0.1
+	print("All power-up effects reset to default values.")
